@@ -21,4 +21,4 @@ js/i18n.js          # English / 中文 translations
 js/app.js           # Navigation & interactions
 ```
 
-Sections: General Info · Research Interest · Internship · Academic Performance · Publications
+Sections: General Info · Research · Internship · Academic Performance · Publications

@@ -1,0 +1,662 @@
+% !TeX program = xelatex
+\documentclass[11pt]{article}
+\usepackage[margin=0.9in]{geometry}
+
+% Core packages
+\usepackage{amsmath,amssymb}
+\usepackage[fontset=none]{ctex}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{subcaption}
+\setCJKmainfont{Songti SC}[
+  Path=/System/Library/Fonts/Supplemental/,
+  Extension=.ttc,
+  UprightFont=Songti,
+  BoldFont=Songti,
+  ItalicFont=Songti,
+  BoldItalicFont=Songti,
+  UprightFeatures={FontIndex=0},
+  BoldFeatures={FontIndex=1},
+  ItalicFeatures={FontIndex=0},
+  BoldItalicFeatures={FontIndex=1}
+]
+\setCJKsansfont{Hiragino Sans GB}[
+  Path=/System/Library/Fonts/,
+  Extension=.ttc,
+  UprightFont=Hiragino Sans GB,
+  BoldFont=Hiragino Sans GB,
+  UprightFeatures={FontIndex=0},
+  BoldFeatures={FontIndex=1}
+]
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+
+% Paragraphs
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.35\baselineskip}
+\setlist[itemize]{leftmargin=2em, itemsep=0.2em, topsep=0.2em}
+\setlist[enumerate]{leftmargin=2em, itemsep=0.2em, topsep=0.2em}
+
+\begin{document}
+
+\begin{center}
+{\LARGE \textbf{像素扩散解码器：基于 RAE 的高保真图像生成}}
+
+{\large 施昊旸\quad 陆修远}
+
+{\large 指导教师：徐增林}
+
+{\large 复旦大学数学科学学院}
+
+{\large 2026年7月}
+\end{center}
+
+\begin{abstract}
+表征自编码器（Representation Autoencoder, RAE）用冻结的视觉表征编码器替代传统 VAE 编码器，在 ImageNet 256$\times$256 类条件生成上取得了很强的结果。然而，RAE 的最终图像仍由一个前馈 ViT 解码器一步得到，细节区域可能出现文字模糊、人脸结构不稳和颜色偏移等问题。本项目尝试用一个在像素空间运行的扩散模型替换这一步解码器，形成“语义潜在空间去噪--像素空间扩散解码”的串行生成框架。我们实现了完整的训练、采样和评估流程，并围绕同步/串行去噪、语义条件注入方式、模型规模、采样 time shift、classifier-free guidance（CFG）和 AutoGuidance 进行了系统实验。最终，最佳模型在 ImageNet 256$\times$256 上达到 FID50k = 2.065，但其参数量和推理开销均显著高于原始 RAE，且仍未超过 RAE 已有结果。我们的结论是：像素扩散解码器作为 RAE 后端在技术上可行，串行解耦和 CFG 设计也确实有效；但在当前条件下，主要瓶颈并不只是解码器容量，而是 DINOv2 语义表征本身缺少足够的像素级信息。该结果为后续研究提供了一个较完整的负面基线，也说明单纯加重像素解码器并不是改进 RAE 细节质量的理想路径。所有代码见\url{https://github.com/shihaoyang0423/Pixel-Generation-with-RAE}。
+\end{abstract}
+
+\section{研究背景与问题定义}
+
+图像生成是人工智能领域的核心问题之一。自去噪扩散概率模型（DDPM）\cite{ddpm}提出以来，扩散模型已逐步成为图像生成的主流范式。近年来以扩散变换器（Diffusion Transformer, DiT）\cite{dit}为代表的潜在空间生成模型取得了显著进展，但其背后的自编码器组件却长期停滞不前。主流方法仍广泛依赖潜在扩散模型（LDM）\cite{ldm}中提出的 SD-VAE：这一卷积自编码器通过大幅压缩将 $256\times256$ 图像映射到仅有 4 通道的 $32\times32$ 低维潜在空间，虽然降低了后续扩散模型的计算开销，但也带来了信息容量受限、语义表达能力薄弱，以及多阶段训练带来的误差累积等问题。
+
+Zheng 等人提出的表征自编码器（Representation Autoencoder, RAE）\cite{rae} 为此提供了新的思路：用冻结的预训练视觉表征编码器（如 DINOv2\cite{dinov2}）替代传统 VAE\cite{vae} 编码器，搭配一个基于 ViT\cite{vit} 的可训练解码器，形成新的自编码器框架。RAE 在 ImageNet 类条件生成任务上取得了 FID 1.51（无引导）和 1.13（有引导）的优异表现。其整体架构如图~\ref{fig:rae-arch} 所示：左侧为 DINOv2 编码器、基于 DiT 的去噪模型与 ViT 解码器；右侧展示了 DiT$^{\mathrm{DH}}$ 的具体结构——在标准 DiT 后附加一个浅而宽的 DDT 头。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{RAE架构.png}
+\captionsetup{width=0.9\textwidth,font=small}
+\caption{左侧为 RAE 的整体架构——DINOv2 编码器、基于 DiT 架构的去噪模型与 ViT 架构的解码器；右侧为 RAE 的基于 DiT 的去噪模型 DiT$^{\mathrm{DH}}$ 的具体架构——在标准 DiT 后面附加了一个浅而宽的 DDT 头。}
+\label{fig:rae-arch}
+\end{figure}
+
+然而，RAE 框架并非没有局限。其解码器是一个单向的前馈 ViT 模型，将去噪后的语义潜在特征一步映射到像素空间。这种确定性解码方式存在明显的细节丢失问题：Yu 等人\cite{rae-ar} 在 RAE-AR 工作中系统分析了 RAE 框架的重建质量，实验表明 RAE 重建的图像在文字、人脸等需要精细纹理的区域常常出现模糊、结构失真，DINOv2 编码下的重建还容易出现较为明显的色偏（见图~\ref{fig:rae-problem}）。这些瓶颈源于语义编码器本质上并不保存完备的低层视觉信息（DINOv2 的训练目标是语义判别而非像素重建），而单步前馈解码器的容量又不足以从语义特征中完整恢复这些缺失的像素级细节。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{RAE问题图.png}
+\captionsetup{width=0.7\textwidth,font=small}
+\caption{“RAE 能够重建大部分信息，包括结构、纹理和颜色。然而，与 VAE 相比，其细节部分相对较差。具体来说，第一行和第三行中的文字未能被完美重建。第二行和最后一行中的面部图像模糊且结构不佳。此外，DINOv2 的重建容易出现严重的颜色偏差。”（摘自\cite{rae-ar}）}
+\label{fig:rae-problem}
+\end{figure}
+
+本项目的基本设想是：将 RAE 框架中“一步到位”的确定性解码器替换为一个在像素空间运行的扩散模型——我们称之为像素扩散解码器（Pixel Diffusion Decoder）。具体而言，我们首先让 RAE 的扩散网络 DiT$^{\mathrm{DH}}$ 在 DINOv2 语义潜在空间中完成去噪，得到干净的语义特征；然后以此为固定条件，驱动一个独立的、在像素空间运行的扩散变换器从纯噪声逐步生成高保真 RGB 图像。这一方案将“语义生成”与“像素生成”解耦为两个串行扩散过程：像素扩散解码器通过数十步迭代去噪，有充分的计算预算来逐步恢复语义特征中缺失的纹理细节。
+
+从更广义的视角看，本课题试图回答一个具有理论意义的问题：在语义潜在空间扩散模型已经极高效地完成了高层结构生成的前提下，是否可以用一个相对轻量的像素空间扩散模型来完成低层细节的精细合成？这一思路将语义表征的强结构性优势与像素扩散的精细建模能力结合起来。需要说明的是，这一方向与近年来直接将扩散模型用于像素空间的端到端方法（如 PixelDiT\cite{pixeldit}、HyperDiT\cite{hyperdit}、EPG\cite{epg} 等）有着本质不同：我们不是从零开始在像素空间训练一个完整的生成模型，而是在语义潜在空间生成已完成的前提下，利用像素扩散专门负责细节恢复这一子任务。
+
+\section{相关工作}
+
+\subsection{潜在空间扩散模型的发展}
+
+自 Ho 等人\cite{ddpm} 提出 DDPM 以来，扩散模型已成为图像生成的主流范式。Dhariwal 和 Nichol\cite{adm} 提出的 ADM 首次在 ImageNet 上证明了扩散模型的生成质量可以超越 GAN\cite{gan}。随后，Rombach 等人\cite{ldm} 提出的潜在扩散模型（LDM）将扩散过程从像素空间移至压缩的 VAE 潜在空间，大幅降低了计算开销。Peebles 和 Xie\cite{dit} 提出的 DiT 进一步将 U-Net 架构替换为纯 Transformer，证明了扩散模型的可扩展性。此后的 SiT\cite{sit}、MDTv2\cite{mdtv2}、REPA\cite{repa}、DDT\cite{ddt} 等工作分别从不同角度改进了 DiT 的训练效率和生成质量。但这些工作中使用的自编码器几乎全部沿用 SD-VAE 或其变体，其 4--16 通道、32 倍空间压缩的设计在信息容量上存在天然瓶颈。
+
+\subsection{语义表征与生成的融合}
+
+近年来，将预训练视觉表征编码器的语义信息引入生成模型成为重要研究方向。Yu 等人\cite{repa} 提出的 REPA 在 DiT 的中间层引入与 DINOv2 表征的对齐损失，有效加速了收敛；Wang 等人\cite{ddt} 提出的 DDT 将 DiT 解耦为编码器--解码器结构，在编码器输出上施加 REPA 损失；Wu 等人\cite{reg} 提出的 REG 则在 DiT 序列中引入可学习 token 并与表征编码器对齐；Kouzelis 等人\cite{redi} 提出的 ReDi 在扩散模型中同时生成 VAE 潜在变量和 DINOv2 特征的 PCA 分量。然而这些方法仍以 VAE 潜在空间为生成目标，语义表征仅作为辅助信号。
+
+Zheng 等人\cite{rae} 的 RAE 工作实现了突破：直接将扩散模型置于冻结的 DINOv2 编码器的 768 维语义空间中训练。他们解决了三个关键技术挑战：（1）发现 DiT 的宽度必须大于等于潜在 token 维度才能有效学习，并给出了理论证明；（2）在 Esser 等人\cite{sd3} 提出的分辨率依赖噪声调度基础上，提出了维度依赖的噪声调度偏移；（3）在解码器训练中引入噪声增强以提高对扩散输出的鲁棒性。同时，他们在 DiT 基础上提出 DiT$^{\mathrm{DH}}$ 架构，通过在标准 DiT 后附加一个浅而宽的 DDT 头部来高效扩大宽度（见图~\ref{fig:rae-arch}）。RAE 凭借这一框架在 ImageNet 256$\times$256 上取得了 FID 1.51（无引导）和 1.13（有引导）的优异成绩。
+
+与 RAE 直接相关的后续工作包括：Tong 等人\cite{scale-rae} 将 RAE 扩展至大规模文生图场景（Scale-RAE）；Zheng 等人\cite{raev2} 进一步提出 RAEv2，通过累加编码器最后 $k$ 层输出、结合 REPA 损失等改进，在仅 20 个 epoch 的训练下即达到 1.06 的 FID。
+
+\subsection{像素空间扩散模型}
+
+尽管潜在扩散占据主导，像素空间扩散模型在近期也取得了显著进展，形成了与本课题直接相关的比较基准。Li 和 He\cite{jit} 提出的 JiT 以 x-prediction 替代传统噪声预测，首次证明朴素的大 patch ViT 可以直接在像素空间上进行有效的扩散训练。在此基础上，Ma 等人\cite{pixelgen} 提出的 PixelGen 引入 LPIPS\cite{lpips} 和 DINO 感知损失，在 80 个 epoch 的训练下达到 FID 5.11。Yu 等人\cite{pixeldit} 提出的 PixelDiT 采用双层级联设计，在 ImageNet 256 上达到 FID 1.61。He 等人\cite{hyperdit} 提出的 HyperDiT 利用跨尺度超连接和多尺度交叉注意力，达到 FID 1.56。Lei 等人\cite{epg} 提出的 EPG 通过自监督预训练编码器配合端到端微调，达到 FID 1.58。
+
+值得特别关注的是 Baade 等人\cite{latent-forcing} 提出的 Latent Forcing：通过安排潜在变量先于像素去噪的轨迹顺序，让语义潜在特征充当像素生成的“草稿”，在去噪过程的后半段再生成高频像素细节。这一思路与本课题有相通之处，但 Latent Forcing 采用的是在同一扩散模型内部交错处理的方案，与本课题中“完整完成语义去噪后再进行像素扩散”的完全串行解耦策略存在本质差异。
+
+\subsection{RAE 框架的现存问题}
+
+尽管 RAE 在 FID 指标上表现出众，其解码阶段的细节质量仍存在明显不足。Yu 等人\cite{rae-ar} 在 RAE-AR 中明确指出：表征自编码器能够重建大部分结构、纹理和颜色信息，但与 VAE 相比细节相对较差——文字未能被完美重建，人脸模糊且结构不佳，DINOv2 重建还容易出现严重色偏。这些观察揭示了单步确定性解码在处理富含局部细节内容时的能力边界。
+
+此外，从优化角度看，RAE 的解码器仅使用干净语义特征进行训练（L1 + LPIPS + GAN 损失），而推理时扩散模型输出的语义特征必然带有一定噪声和分布偏移。虽然 RAE 通过噪声增强解码器训练在一定程度上缓解了这一问题，但并未从根本上解决“解码器只能从离散固定的语义点重建”与“扩散模型输出连续分布的语义特征”之间的失配。
+
+综上所述，当前图像生成领域正处在从 VAE 潜在空间向语义表征空间迁移的范式转换期。如何在保持语义生成效率的同时进一步提升像素级细节的保真度，仍然是尚未充分探索的关键问题。本课题正是在这一背景下，探索像素扩散解码器作为连接语义表征与高保真像素输出的新途径。
+
+\section{方法}
+
+\subsection{从同步去噪到串行解耦去噪}
+
+本课题的核心思路是：将 RAE 框架中单步确定性的 ViT 解码器替换为一个在像素空间运行的扩散变换器，形成“语义潜在空间去噪 $\rightarrow$ 像素空间扩散解码”的串行解耦生成框架。
+
+项目早期版本采用同步去噪：RAE 语义流和 Pixel Head 像素流共享同一个时间步 $t$，两者同时从噪声走向干净样本。这个设计直观上很自然，但实验效果很差，6 层、768 维的 67M 参数量 Pixel Head 在无 CFG 下 FID 约为 66。我们认为原因在于，Pixel Head 接收到的是 RAE 流的中间状态，而不是稳定的干净语义条件；同时，两条扩散过程的状态空间不同，强行共享同一个时间变量会使条件信号变得混乱。
+
+因此，我们将生成过程改为三阶段串行解耦（见图~\ref{fig:serial-pipeline}）：
+\begin{enumerate}
+    \item \textbf{RAE 语义去噪：}从高斯噪声 $z_{\mathrm{rae}}$ 出发，使用冻结或预训练的 DiT$^{\mathrm{DH}}$ 在 DINOv2 latent 空间中进行 50 步 Euler 去噪，得到干净语义 latent $x_{\mathrm{rae}}$。
+    \item \textbf{条件提取：}将 $x_{\mathrm{rae}}$ 输入 DiT$^{\mathrm{DH}}$ 编码器，提取瓶颈层特征 $s_{\mathrm{clean}}$，作为后续像素去噪的语义条件。
+    \item \textbf{像素扩散解码：}从独立的像素噪声 $z_{\mathrm{pix}}$ 出发，Pixel Head 在固定的 $s_{\mathrm{clean}}$ 条件下进行 50 步 Euler 去噪，最终生成 $3\times256\times256$ 图像。
+\end{enumerate}
+
+串行方案的关键不是简单地多加一个模型，而是让两条扩散轨迹在时间上彻底解耦。RAE 流负责先给出稳定的语义结构，Pixel 流只在该结构的条件下做像素合成。这个改动将早期同步版本约 66 的 FID 降至 48--44；在进行了一系列工程调优之后，无 CFG 结果进一步降至约 35，说明“先语义、后像素”的方向至少在工程上是可行的。
+
+需要强调的是，两个扩散过程的噪声源和时间步完全独立——这是“串行解耦”的关键特征，意味着语义去噪的质量不受像素扩散影响，像素扩散的每一层都可以获得来自完整语义表征的稳定条件信号。流匹配训练目标和三阶段采样过程的更具体数学形式见附录 \ref{app:flow-matching-details}。
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.45\textwidth}
+\centering
+\includegraphics[width=\linewidth]{同步去噪.png}
+\captionsetup{font=small}
+\caption{同步去噪}
+\end{subfigure}\hfill
+\begin{subfigure}{0.55\textwidth}
+\centering
+\includegraphics[width=\linewidth]{三阶段流程图.png}
+\captionsetup{font=small}
+\caption{三阶段串行解耦去噪}
+\end{subfigure}
+\captionsetup{width=0.9\textwidth,font=small}
+\caption{同步去噪与三阶段串行解耦去噪对比。左图中 RAE 语义流与 Pixel Head 像素流共享同一时间步并同步更新；右图中模型先完成 RAE 语义去噪，再提取干净语义条件，最后进行像素扩散解码。}
+\label{fig:serial-pipeline}
+\end{figure}
+
+\subsection{可配置语义条件注入}
+
+Pixel Head 采用 DiT block 作为主干。为了研究语义条件在不同层的作用，我们实现了 free-layer 版本：通过配置文件指定哪些 Pixel Head 层接收 RAE 条件，哪些层只使用时间步和类别标签条件。具体地，在指定注入层中，瓶颈特征 $s_{\mathrm{clean}}$ 与时间步嵌入共同生成 AdaLN 条件；在非注入层中，模型只使用时间步和类别标签嵌入。这个设计使我们可以在不改模型代码的情况下比较不同注入深度、注入层数和模型规模。
+
+我们实现并比较了多种条件注入方式：
+\begin{itemize}
+    \item \textbf{瓶颈层 AdaLN 注入：}将干净语义特征经 DiT$^{\mathrm{DH}}$ 编码器处理后，经 AdaLN 注入指定层；
+    \item \textbf{直接注入：}跳过编码器，将 DINOv2 特征经线性映射后直接作为条件；
+    \item \textbf{通道拼接（channel concat）：}将语义特征与像素 token 在通道维度拼接后送入 Pixel Head。
+\end{itemize}
+
+后续主要实验均采用瓶颈层特征注入，而不是直接注入原始 DINOv2 latent。原因是瓶颈层特征经过 DiT$^{\mathrm{DH}}$ 编码器处理，已经融合了全局语义信息，比原始 latent 更适合作为像素扩散的条件。早期消融结果见附录 \ref{app:inject-details}。
+
+\subsection{面向串行框架的 CFG 设计}
+
+Classifier-free guidance 是扩散模型采样中常用的质量提升手段。但在我们的框架中，CFG 不只涉及类别标签 $y$，还涉及语义条件 $s_{\mathrm{clean}}$。Pixel Head 的条件分支和无条件分支如何构造 $s_{\mathrm{clean}}$，直接影响 CFG 方向是否合理。
+
+为此，我们实现了四种 $s_{\mathrm{clean}}$ 构造方式：
+\begin{table}[H]
+\centering
+\caption{$s_{\mathrm{clean}}$ CFG 模式说明}
+\begin{tabular}{lll}
+\toprule
+模式 & 核心做法 & 直观含义 \\
+\midrule
+shared & 无条件分支复用条件分支的 $s_{\mathrm{clean}}$ & CFG 主要只来自类别标签 \\
+split & 同一语义 latent，只把类别换成空类 & 仍保留同一张图的空间语义信息 \\
+traj & 条件/无条件各自完成 RAE 去噪 & 两路条件来自不同图像 \\
+null & 训练一个可学习的空白 $s_{\mathrm{clean}}$ & 真正置空语义条件 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+其中 null 模式最符合 classifier-free guidance 的定义。训练时，我们用同一个 dropout mask 同步置空类别标签和 $s_{\mathrm{clean}}$，并引入可学习参数 \texttt{null\_s\_clean} 表示“无语义条件”。采样时，无条件分支直接使用该空白条件。这样，无条件分支不再“偷看”同一张图的语义内容，CFG 的方向更干净。
+
+\subsection{难点与创新点}
+
+本课题面临三方面核心难点。其一，高维像素空间的扩散训练本身具有天然难度：即使已有语义条件作为先验，如何有效地将语义信息传递到像素扩散的每一层、使其在训练早期快速收敛，仍是关键挑战。其二，语义信息与像素细节之间存在信息缺口——DINOv2 并不保存完备的像素级信息，像素扩散解码器需要在一定程度上“凭空”生成条件中未包含的纹理细节。其三，推理效率与生成质量需要客观权衡：像素扩散解码器额外增加约一倍去噪步骤，这一开销是否值得，是需要用实验回答的问题。
+
+针对上述问题，本工作的主要创新点在于：（1）首次将像素空间扩散模型作为 RAE 框架中语义表征的解码器，在单步 ViT 解码与端到端像素扩散之间找到一个独特结合点；（2）提出并验证了“串行解耦去噪”训练范式，与同步去噪及 Latent Forcing 中的交错去噪策略均有所不同；（3）系统研究了语义条件在像素扩散解码器中的注入方式与 CFG 构造，为理解“高维语义表征如何引导低层像素合成”提供了实验依据；（4）对“能否以相对轻量的像素扩散模块补足语义表征在像素级细节上的固有不足”这一问题给出了较完整的实证测量，包括其可行边界与效率瓶颈。
+
+\section{实验设置}
+
+所有主要实验均在 ImageNet 256$\times$256 类条件生成任务上进行。训练集使用 ImageNet-1K 训练集，评估使用与领域系列工作一致的 ImageNet 统计量。快速筛选时使用 5000 张样本计算 FID5k；正式结果使用 50000 张样本计算 FID50k。采样器主要采用 Euler ODE，RAE 流与 Pixel 流默认各 50 步。数据来源、下载链接与预处理步骤见附录 \ref{app:data-prep}。
+
+我们比较了三类模型规模：
+\begin{itemize}
+    \item \textbf{小模型：}Pixel Head 为 6 层、768 维，约 67M 可训练参数；其冻结 DiT$^{\mathrm{DH}}$-S backbone 约 197M，总推理参数量约 264M。
+    \item \textbf{中等模型：}Pixel Head 为 12 层、1152 维，约 295M 可训练参数；其冻结 DiT$^{\mathrm{DH}}$-XL backbone 约 839M，总推理参数量约 1134M。
+    \item \textbf{大模型：}Pixel Head 为 16 层、1536 维，约 692M 可训练参数；其冻结 DiT$^{\mathrm{DH}}$-XL backbone 约 839M，总推理参数量约 1531M。
+\end{itemize}
+
+为保证实验具有可比性，我们尽量固定训练配方：Pixel 流采用 x-prediction，训练时间采样为 logit-normal；RAE 流采用 v-prediction；Pixel Head 从零训练，DiT$^{\mathrm{DH}}$ backbone 冻结。后续调优主要集中在条件注入位置、CFG 构造方式、RAE/Pixel CFG 强度和采样时 pixel time shift（记为 pix\_ts）。更完整的训练、模型和评估配置见附录 \ref{app:config-details}。
+
+\section{实验结果}
+
+\subsection{串行解耦显著优于同步去噪}
+
+最早的同步去噪版本在 6$\times$768 Pixel Head 上 FID 约为 66。改为串行解耦后，Pixel Head 接收到稳定的干净语义条件，结果明显改善；在同量级模型上，经过基本结构调优后无 CFG FID 可降至约 35。这个结果说明，像素扩散解码器并非完全不可训练，关键在于给它一个稳定且语义明确的条件。
+
+\begin{table}[H]
+\centering
+\caption{主要模型规模与结果概览}
+\begin{tabular}{lllll}
+\toprule
+模型设置 & Pixel Head & Guidance & FID \\
+\midrule
+同步去噪早期版本 & 6$\times$768, 67M & 无 & $\approx$66 \\
+串行解耦基础版本 & 6$\times$768, 67M & 无 & $\approx$35 \\
+串行解耦放大版本 & 12$\times$1152, 295M & 无 & 5.06 \\
+12$\times$1152 null CFG & 12$\times$1152, 295M & 有 & 2.42 \\
+16$\times$1536 null CFG & 16$\times$1536, 693M & 有 & 2.07 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{模型放大带来明显收益，但代价很高}
+
+在串行配方确定后，模型规模成为影响结果的主要因素。6$\times$768 小模型虽然能收敛，但 FID 与主流方法差距很大；12$\times$1152 模型在同样训练周期下可以达到无 CFG FID 5.06，使我们确认 Pixel Head 的容量确实重要；进一步放大到 16$\times$1536 后，配合 CFG 和 pix\_ts 调优，最终得到 FID 2.065（可视化见图~\ref{fig:vis}）。
+
+然而，这一提升的代价非常明显。最佳模型的 Pixel Head 本身约 693M 参数，加上冻结的 DiT$^{\mathrm{DH}}$-XL backbone，总推理参数约 1531M；推理时还需要先进行 RAE 50 步去噪，再进行 Pixel 50 步去噪。相比之下，RAE 原始方法使用单步 ViT 解码器，在更低推理步数下已经达到 FID 1.13。也就是说，本项目的最好结果虽然数值上达到 2.07，但从质量--效率权衡看并不理想。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{九宫格.png}
+\captionsetup{width=0.6\textwidth,font=small}
+\caption{生成图像可视化}
+\label{fig:vis}
+\end{figure}
+
+\subsection{与代表性方法的系统比较}
+
+为了更客观地评估最终模型，我们在同一组 50k 生成样本上进一步计算了 sFID、Inception Score、Precision 和 Recall。最终模型的全套指标为：FID 2.07，sFID 5.33，Inception Score 264.28，Precision 0.79，Recall 0.62。表 \ref{tab:main-comparison} 汇总了本文方法与若干代表性 ImageNet 256$\times$256 类条件生成方法的结果。需要说明的是，我们没有条件逐一重新测评先前的各项工作，这些数据都只是从原文报告的结果中摘录的；而不同论文的评测协议、是否使用 class-balanced sampling、是否包含外部解码器参数等细节可能略有差异。因此该表主要用于定位量级和比较趋势，而不是作为完全严格的逐项公平比较。对于原文未报告的指标，我们以“--”标记。
+
+\begin{table}[H]
+\centering
+\caption{ImageNet 256$\times$256 类条件生成性能对比。G 表示使用 guidance，U 表示不使用 guidance。}
+\label{tab:main-comparison}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llcccccccc}
+\toprule
+类别 & 方法 & Guidance & 参数量 & Epochs & FID$\downarrow$ & sFID$\downarrow$ & IS$\uparrow$ & Precision$\uparrow$ & Recall$\uparrow$ \\
+\midrule
+\multirow{5}{*}{Latent diffusion}
+& DiT-XL/2 \cite{dit} & G & 675M+49M & 1400 & 2.27 & 4.60 & 278.2 & 0.83 & 0.57 \\
+& SiT-XL/2 \cite{sit} & G & 675M+49M & 1400 & 2.06 & 4.50 & 277.5 & 0.80 & 0.64 \\
+& REPA-XL/2 \cite{repa} & G & 675M+49M & 800 & 1.42 & 4.70 & 305.7 & 0.80 & 0.64 \\
+& RAE-XL \cite{rae} & U & 839M+415M & 800 & 1.51 & -- & 242.9 & 0.79 & 0.63 \\
+& RAE-XL \cite{rae} & G & 839M+415M & 800 & 1.13 & -- & 262.6 & 0.78 & 0.67 \\
+\midrule
+\multirow{8}{*}{Pixel diffusion}
+& PixelGen-XL/16 \cite{pixelgen} & U & -- & 80 & 5.11 & -- & 159.2 & 0.72 & 0.63 \\
+& PixelGen-XL/16 \cite{pixelgen} & G & -- & 160 & 1.83 & -- & 293.6 & 0.79 & 0.63 \\
+& JiT-G/16 \cite{jit} & G & 2B & 600 & 1.82 & -- & 292.6 & 0.79 & 0.62 \\
+& EPG-G/16 \cite{epg} & G & 1391M & 1600 & 1.58 & -- & 298.4 & 0.80 & 0.63 \\
+& Latent Forcing, LF-DiT-L \cite{latent-forcing} & U & 465M & 200 & 7.20 & -- & -- & -- & -- \\
+& Latent Forcing, LF-DiT-L \cite{latent-forcing} & G & 465M & 200 & 2.48 & -- & -- & -- & -- \\
+& PixelDiT-XL \cite{pixeldit} & G & 797M & 320 & 1.61 & 4.68 & 292.7 & 0.78 & 0.64 \\
+& HyperDiT-H \cite{hyperdit} & G & 952M & 600 & 1.56 & 4.73 & 306.5 & 0.80 & 0.64 \\
+\midrule
+Ours & Pixel Diffusion Decoder & G & 839M+693M & 50 & \textbf{2.07} & 5.33 & 264.28 & 0.79 & 0.62 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+从表中可以看到，我们的方法已经明显优于早期无 guidance 的像素扩散设置，也接近部分较早的 guided 像素空间方法；但与 RAE、PixelDiT、HyperDiT、EPG 等当前强基线相比，仍存在清晰差距。更重要的是，我们的参数量与推理路径并不占优：最终模型需要同时运行冻结的 DiT$^{\mathrm{DH}}$-XL backbone 和大规模 Pixel Head，总参数量超过 1.5B，而 RAE 原始方法在更简单的解码方式下已取得更好的 FID 和 Recall。这进一步支持本文的核心判断：像素扩散解码器可以作为 RAE 后端工作，但仅靠扩大像素解码器规模并不足以获得有竞争力的质量--效率比。
+
+\subsection{最终配置的形成}
+
+综合上述实验，我们的最终模型采用三阶段串行解耦框架，Pixel Head 规模为 16 层、1536 维，并使用 DiT$^{\mathrm{DH}}$-XL 作为冻结语义 backbone。在采样侧，最终配置采用 null $s_{\mathrm{clean}}$ 形式的 CFG，即无条件分支使用训练得到的空白语义条件；同时将采样 time shift 调整为 pix\_ts=3.5，并取 CFG scale=1.2。该组合在 FID5k 筛选中取得最优结果，随后用 50k 样本完成正式评估。
+
+更细的调参和消融结果放在附录中：早期条件注入方式比较见附录 \ref{app:inject-details}；不同 $s_{\mathrm{clean}}$ 构造方式的比较见附录 \ref{app:cfg-details}；pix\_ts 与 CFG scale 的扫描见附录 \ref{app:pixts-details}；AutoGuidance 的实验结果见附录 \ref{app:ag-details}。这些实验共同支持正文的主要结论：null 条件和采样时间分布是最终配置中最关键的两个采样因素，而 AutoGuidance 只能提供有限的额外收益。
+
+\section{分析与讨论}
+
+从结果看，本项目有两层结论。第一层是正面的：像素扩散解码器在 RAE 后端是可以训练的。同步去噪失败后，串行解耦使条件信号稳定下来，FID 从约 66 大幅下降；free-layer 注入、AdaLN-Zero、类别嵌入、null $s_{\mathrm{clean}}$ 和 pix\_ts 调优都带来了可观收益。尤其是从 6$\times$768 到 12$\times$1152 再到 16$\times$1536，结果存在清晰的规模效应，说明模型确实在利用语义条件学习像素空间分布。
+
+第二层结论则更重要：在当前方案下，继续加重 Pixel Head 并不是一条高效路径。我们的最佳模型比 RAE 原始框架更大、更慢，但 FID 仍落后。这说明瓶颈并不只是“解码器不够强”。DINOv2 latent 本质上是为语义判别学习的表征，并不完整保存像素级低层信息。Pixel Head 虽然可以通过多步去噪生成更多细节，但这些细节在很大程度上需要从类别和语义结构中猜测，而不是从条件中直接恢复。换言之，多步扩散能够细化已有信息，却很难凭空恢复条件中不存在的细粒度内容。
+
+这也解释了为什么 CFG 和 pix\_ts 调优虽然有效，却不能带来质变。CFG 可以提高类别一致性和样本锐度；pix\_ts 可以改善 Euler 采样在不同噪声区间的误差分配；AutoGuidance 可以略微改善 RAE 语义 latent 的类别方向。但这些方法都没有改变输入条件的信息含量。当条件本身缺乏文字笔画、人脸细节或精确颜色等低层信息时，Pixel Head 的任务更接近“有语义约束的重新生成”，而不是“从语义条件中解码真实细节”。
+
+因此，本项目最有价值的结果并不是 FID 2.065 本身，而是对这一设计空间的较完整测量：串行解耦是必要的，null 条件是 CFG 中最合理的做法，模型容量和采样时间分布都很关键；但若目标是以合理代价超过 RAE 原始解码器，仅在 RAE 后端堆叠像素扩散模型并不充分。后续更有希望的方向，或许是重新考虑语义表征与像素细节之间的信息传递方式——例如增强编码器对低层信息的保留、设计更高效的条件注入机制，或探索超分辨率式扩展——而不是单纯扩大像素解码器规模。
+
+\section{结论}
+
+本文围绕“能否用像素扩散模型替换 RAE 的一步 ViT 解码器”这一问题，完成了从模型实现到系统实验的一整套探索。我们提出并实现了串行解耦的语义--像素生成流程，支持可配置语义条件注入，并针对串行框架设计了 null $s_{\mathrm{clean}}$ CFG、RAE/Pixel CFG 解耦和 AutoGuidance 等采样策略。实验表明，串行解耦相较同步去噪有决定性改进，模型放大与采样调优也能持续提升结果；最终最佳配置达到 FID50k 2.065。
+
+同时，结果也表明该方向存在明确局限：最佳模型参数量和推理成本均显著高于 RAE 原始方案，却没有取得更好的 FID。我们认为，根本原因在于语义表征并不包含充分的像素级信息，单纯增加像素解码器容量无法完全弥补这一信息缺口。本工作完成了一个可复现的像素扩散解码器系统，并给出了较系统的实验结论；作为研究探索，它提供了一个有价值的负面基线：在 RAE 框架中提升细节质量，关键可能不只是换一个更强的解码器，而是需要重新考虑语义表征与像素细节之间的信息传递方式。
+
+\begin{thebibliography}{99}
+
+\bibitem{ddpm}
+Ho, J., Jain, A., and Abbeel, P. Denoising Diffusion Probabilistic Models. NeurIPS 2020.
+
+\bibitem{dit}
+Peebles, W. and Xie, S. Scalable Diffusion Models with Transformers. ICCV 2023.
+
+\bibitem{ldm}
+Rombach, R., Blattmann, A., Lorenz, D., Esser, P., and Ommer, B. High-Resolution Image Synthesis with Latent Diffusion Models. CVPR 2022.
+
+\bibitem{rae}
+Zheng, B., Ma, N., Tong, S., and Xie, S. Diffusion Transformers with Representation Autoencoders. ICLR 2026.
+
+\bibitem{dinov2}
+Oquab, M. et al. DINOv2: Learning Robust Visual Features without Supervision. TMLR 2024.
+
+\bibitem{vae}
+Kingma, D. P. and Welling, M. Auto-Encoding Variational Bayes. ICLR 2014.
+
+\bibitem{vit}
+Dosovitskiy, A. et al. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
+
+\bibitem{rae-ar}
+Yu, H., Xu, H., Huang, J., et al. RAE-AR: Taming Autoregressive Models with Representation Autoencoders. arXiv:2604.01545, 2026.
+
+\bibitem{adm}
+Dhariwal, P. and Nichol, A. Diffusion Models Beat GANs on Image Synthesis. NeurIPS 2021.
+
+\bibitem{gan}
+Goodfellow, I. et al. Generative Adversarial Nets. NeurIPS 2014.
+
+\bibitem{sit}
+Ma, N., Goldstein, M., Albergo, M. S., Boffi, N. M., Vanden-Eijnden, E., and Xie, S. SiT: Exploring Flow and Diffusion-Based Generative Models with Scalable Interpolant Transformers. ECCV 2024.
+
+\bibitem{mdtv2}
+Gao, S., Zhou, P., Cheng, M.-M., and Yan, S. MDTv2: Masked Diffusion Transformer is a Strong Image Synthesizer. arXiv:2303.14389, 2023.
+
+\bibitem{repa}
+Yu, S., Kwak, S., Jang, H., Jeong, J., Huang, J., Shin, J., and Xie, S. Representation Alignment for Generation: Training Diffusion Transformers Is Easier Than You Think. ICLR 2025.
+
+\bibitem{ddt}
+Wang, S., Tian, Z., Huang, W., and Wang, Z. DDT: Decoupled Diffusion Transformer. NeurIPS 2025.
+
+\bibitem{reg}
+Wu, G., Zhang, S., Shi, R., et al. Representation Entanglement for Generation: Training Diffusion Transformers Is Much Easier Than You Think. NeurIPS 2025.
+
+\bibitem{redi}
+Kouzelis, T., Karypidis, E., Kakogeorgiou, I., et al. Boosting Generative Image Modeling via Joint Image-Feature Synthesis. NeurIPS 2025.
+
+\bibitem{sd3}
+Esser, P., Kulal, S., Blattmann, A., et al. Scaling Rectified Flow Transformers for High-Resolution Image Synthesis. ICML 2024.
+
+\bibitem{scale-rae}
+Tong, S., Zheng, B., Wang, Z., et al. Scaling Text-to-Image Diffusion Transformers with Representation Autoencoders. arXiv:2601.16208, 2026.
+
+\bibitem{raev2}
+Zheng, B., Ma, N., Tong, S., et al. Improved Baselines with Representation Autoencoders (RAEv2). arXiv:2605.18324, 2026.
+
+\bibitem{pixeldit}
+Yu, Y., Xiong, W., Nie, W., et al. PixelDiT: Pixel Diffusion Transformers for Image Generation. arXiv:2511.20645, 2025.
+
+\bibitem{pixelgen}
+Ma, Z., Xu, R., and Zhang, S. PixelGen: Pixel Diffusion Beats Latent Diffusion with Perceptual Loss. arXiv:2602.02493, 2026.
+
+\bibitem{lpips}
+Zhang, R., Isola, P., Efros, A. A., and Wang, O. The Unreasonable Effectiveness of Deep Features as a Perceptual Metric. CVPR 2018.
+
+\bibitem{hyperdit}
+He, Y., Ma, L., Guo, Z., et al. HyperDiT: Hyper-Connected Transformers for High-Fidelity Pixel-Space Diffusion. arXiv:2605.15741, 2026.
+
+\bibitem{epg}
+Lei, J., Liu, K., Berner, J., et al. There is No VAE: End-to-End Pixel-Space Generative Modeling via Self-Supervised Pre-Training. ICLR 2026.
+
+\bibitem{latent-forcing}
+Baade, A., Chan, E. R., Sargent, K., et al. Latent Forcing: Reordering the Diffusion Trajectory for Pixel-Space Image Generation. arXiv:2602.11401, 2026.
+
+\bibitem{jit}
+Li, T. and He, K. Back to Basics: Let Denoising Generative Models Denoise. arXiv:2511.13720, 2025.
+
+\end{thebibliography}
+
+\appendix
+
+\section{附录：实验结果补充}
+
+本附录汇总正文中未展开的调参和消融实验。正文只保留对主要方法和最终结果的说明，具体注入策略比较、模式比较、采样参数扫描和 AutoGuidance 结果在此给出。
+
+\subsection{流匹配与三阶段采样公式}
+\label{app:flow-matching-details}
+
+本项目的训练与采样基于 flow matching / rectified flow 的思想。记真实样本为 $x_1\sim p_{\mathrm{data}}$，高斯噪声为 $x_0\sim\mathcal N(0,I)$。在线性路径（Linear path）下，我们用
+\begin{equation}
+    x_t = \alpha_t x_1 + \sigma_t x_0, \qquad
+    \alpha_t = 1-t,\quad \sigma_t=t,\quad t\in[0,1],
+\end{equation}
+连接数据分布和噪声分布。因此 $t=0$ 对应干净数据，$t=1$ 对应纯噪声。该路径对应的真实速度场为
+\begin{equation}
+    u_t = \frac{d x_t}{dt}
+        = \dot{\alpha}_t x_1 + \dot{\sigma}_t x_0
+        = x_0 - x_1 .
+\end{equation}
+训练时，模型学习在任意中间状态 $x_t$ 上预测该速度场，基本损失可以写为
+\begin{equation}
+    \mathcal L_{\mathrm{FM}}
+    = \mathbb E_{x_0,x_1,t}\left[
+        \left\| v_\theta(x_t,t,c)-u_t \right\|_2^2
+      \right],
+\end{equation}
+其中 $c$ 表示类别标签或语义条件。我们的 RAE 流采用 v-prediction，即模型直接输出 $v_\theta$；Pixel 流借鉴了 JiT \cite{jit} 的思想，采用 x-prediction，即模型先预测 $\hat{x}_1=f_\theta(x_t,t,c)$，再由线性路径关系换算出速度：
+\begin{equation}
+    v_\theta(x_t,t,c)
+    = \frac{x_t-\hat{x}_1}{t}.
+\end{equation}
+
+实际实现中，Pixel 流的训练损失仍然作用在速度误差上，只是速度由 x-prediction 间接得到。这样做的好处是模型输出与最终的低维图像空间流形更直接相关，避免了被高维的噪声流形所污染，使得训练更加容易、效果也更好；这一点也得到了实验验证：在相同配置的 $6\times 768$ 的 67M 小模型中，v-prediction 在 Epoch 50 仅得到 FID5k 174.84，而 x-prediction 在同等训练步数下 FID 可达 35.69。也就是说，x-prediction 在像素空间中显著更稳定，同时仍保持 flow matching 的 ODE 采样形式。
+
+训练时间 $t$ 并不总是均匀采样。代码中首先从均匀或 logit-normal 分布采样原始时间 $t_{\mathrm{ori}}$，再使用 time shift 变换
+\begin{equation}
+    \tau_\lambda(s)=\frac{\lambda s}{1+(\lambda-1)s},\qquad
+    \frac{d\tau_\lambda}{ds}
+    =\frac{\lambda}{\left(1+(\lambda-1)s\right)^2},
+\end{equation}
+调节不同噪声区间的采样密度。报告中的 pix\_ts 就是 Pixel 流采样阶段使用的 $\lambda$。
+
+采样时，我们从 $t=1$ 的噪声端反向积分到 $t=0$ 的数据端。令 $s$ 为均匀离散的反向时间变量，并令 $t=\tau_\lambda(s)$。Euler 更新可以写成
+\begin{equation}
+    x_{k+1}
+    = x_k + v_\theta(x_k,t_k,c)\,
+      \frac{d\tau_\lambda}{ds}(s_k)\,(s_{k+1}-s_k).
+\end{equation}
+由于 $s_{k+1}<s_k$，该更新实际沿着从噪声到数据的方向前进。
+
+在我们的串行框架中，上述 ODE 被分成三个阶段执行。第一阶段在 RAE 的 DINOv2 latent 空间中去噪：
+\begin{equation}
+    z^{(0)}_{\mathrm{rae}}\sim\mathcal N(0,I),\qquad
+    z^{(k+1)}_{\mathrm{rae}}
+    = z^{(k)}_{\mathrm{rae}}
+      + v^{\mathrm{rae}}_\theta
+        \left(z^{(k)}_{\mathrm{rae}}, t^{\mathrm{rae}}_k, y\right)
+        \Delta t^{\mathrm{rae}}_k ,
+\end{equation}
+经过 50 步得到干净语义 latent
+\begin{equation}
+    x_{\mathrm{rae}}^{\mathrm{clean}} = z_{\mathrm{rae}}^{(50)}
+    \in \mathbb R^{768\times 16\times 16}.
+\end{equation}
+
+第二阶段不再求解 ODE，而是从干净 latent 中提取固定条件。记 DiT$^{\mathrm{DH}}$ 编码器为 $E_{\mathrm{enc}}$，则
+\begin{equation}
+    s_{\mathrm{clean}}
+    = E_{\mathrm{enc}}\left(x_{\mathrm{rae}}^{\mathrm{clean}}, y\right)
+    \in \mathbb R^{256\times C},
+\end{equation}
+其中 $256=16\times16$ 表示空间 token 数，$C$ 为瓶颈特征维度。该 $s_{\mathrm{clean}}$ 在第三阶段保持固定，只作为 Pixel Head 的语义条件。
+
+第三阶段在像素空间中从另一组独立噪声出发：
+\begin{equation}
+    z^{(0)}_{\mathrm{pix}}\sim\mathcal N(0,I),\qquad
+    z^{(k+1)}_{\mathrm{pix}}
+    = z^{(k)}_{\mathrm{pix}}
+      + v^{\mathrm{pix}}_\theta
+        \left(z^{(k)}_{\mathrm{pix}}, t^{\mathrm{pix}}_k, y, s_{\mathrm{clean}}\right)
+        \Delta t^{\mathrm{pix}}_k .
+\end{equation}
+50 步后得到最终图像
+\begin{equation}
+    \hat{x}_{\mathrm{img}} = z_{\mathrm{pix}}^{(50)}
+    \in \mathbb R^{3\times256\times256}.
+\end{equation}
+需要强调的是，$z_{\mathrm{rae}}^{(0)}$ 与 $z_{\mathrm{pix}}^{(0)}$ 独立采样，两个 ODE 的时间步和 time shift 也分别设置。这正是“串行解耦”的含义：RAE 流先完成语义生成，Pixel 流再在固定语义条件下完成像素生成。
+
+\subsection{数据来源与预处理}
+\label{app:data-prep}
+
+本项目使用公开数据集 ImageNet-1K 训练集。数据可从 ImageNet 官方渠道获取；为便于国内环境复现，我们实际推荐使用 OpenDataLab 在浦源平台提供的镜像：\url{https://openxlab.org.cn/datasets/OpenDataLab/ImageNet-1K}。下载后得到的是原始 ImageNet 压缩包，需先解压到本地目录，例如 \texttt{[ImageNet-root]/ILSVRC/Data/CLS-LOC/train}。
+
+原始 ImageNet 图像尺寸不统一，不能直接用于本文的 256$\times$256 类条件生成实验。我们参考 REPA 仓库的 preprocessing 流程（\url{https://github.com/sihyun-yu/REPA/tree/main/preprocessing}），将训练集图像统一 resize 并 center crop 到 256$\times$256。核心转换命令如下，其中 \texttt{--source} 指向解压后的 ImageNet 训练集，\texttt{--dest} 为预处理后的输出目录：
+\begin{verbatim}
+python dataset_tools.py convert \
+    --source=[ImageNet-root]/ILSVRC/Data/CLS-LOC/train \
+    --dest=[output-dir]/images \
+    --resolution=256x256 \
+    --transform=center-crop-dhariwal
+\end{verbatim}
+
+预处理完成后，我们进一步将训练集整理为按类别编号命名的 1000 个子目录，编号范围为 \texttt{0000}--\texttt{0999}；每个类别目录下保存该类图像，文件名形如 \texttt{img00000000.png}。最终训练代码读取的目录结构如下：
+\begin{verbatim}
+/data/data/imagenet/256/train/
+├── 0000/
+│   ├── img00000000.png
+│   └── ...
+├── 0001/
+├── ...
+└── 0999/
+\end{verbatim}
+评估阶段不重新构造验证集，而是使用 ImageNet 256$\times$256 的 reference statistics 计算 FID、sFID、Inception Score、Precision 和 Recall，以便和领域同类工作保持一致的评测口径。
+
+\subsection{实验配置细节}
+\label{app:config-details}
+
+{\renewcommand{\arraystretch}{1.08}
+\begin{longtable}{p{0.28\linewidth}p{0.62\linewidth}}
+\caption{主要实验通用配置。除特别说明外，表中设置对应最终 16$\times$1536 模型。}\\
+\toprule
+项目 & 配置 \\
+\midrule
+\endfirsthead
+\caption[]{主要实验通用配置（续）。}\\
+\toprule
+项目 & 配置 \\
+\midrule
+\endhead
+\midrule
+\multicolumn{2}{r}{续下页}\\
+\endfoot
+\bottomrule
+\endlastfoot
+数据集 & ImageNet-1K，分辨率 256$\times$256，类别条件生成；评估使用 ImageNet 256$\times$256 reference statistics。\\
+硬件 & 8 张 NVIDIA H100 GPU；训练使用 PyTorch DDP，多卡并行。\\
+训练精度 & fp32。\\
+训练 batch size & global batch size = 256，8 卡训练时约为 32 / GPU；gradient accumulation = 1。\\
+随机种子 & 训练配置使用 \texttt{global\_seed=42}；DDP 中第 $r$ 个 rank 实际使用 $\texttt{seed}=42\times\texttt{world\_size}+r$，并显式设置 \texttt{torch.manual\_seed} 与 \texttt{torch.cuda.manual\_seed}。采样脚本默认 \texttt{global\_seed=0}，同样按 rank 设置 torch/cuda 随机种子；采样标签的随机排列也由对应的 \texttt{torch.Generator} 固定。\\
+训练轮数 & 最终模型报告 ep50 checkpoint；训练配置保留 1400 epoch 上限，每 10 epoch 自动触发 FID5k 快速评测。\\
+优化器 & AdamW，学习率 $2.0\times10^{-4}$，betas = (0.9, 0.95)，weight decay = 0。\\
+学习率调度 & linear schedule，warmup 50 epochs，decay end epoch = 100，final lr = $2.0\times10^{-5}$。\\
+EMA & EMA decay = 0.9999，正式采样使用 EMA 权重。\\
+梯度裁剪 & clip grad norm = 1.0。\\
+Pixel Head & 16 层 DiT block，hidden size = 1536，num heads = 16，patch size = 16，MLP ratio = 4.0。\\
+Pixel Head 结构开关 & SwiGLU、RoPE、RMSNorm、AdaLN-Zero、类别嵌入均开启；QK-Norm、LoRA、direct RAE injection 关闭。\\
+语义条件注入 & free-layer 注入，最终模型使用 \texttt{rae\_inject\_layers=[6]}，不注入 final layer；无条件分支使用可学习 \texttt{null\_s\_clean}。\\
+RAE / DiT$^{\mathrm{DH}}$ backbone & DiT$^{\mathrm{DH}}$-XL，冻结；checkpoint 来自预训练 RAE/DiT$^{\mathrm{DH}}$-XL。\\
+训练目标 & Pixel 流：Linear path，data prediction，velocity loss weight，time distribution 为 logit-normal(0.8, 0.8)；RAE 流：velocity prediction。\\
+采样器 & RAE 流 50 步 Euler ODE；Pixel 流 50 步 Euler ODE。\\
+最终采样设置 & null $s_{\mathrm{clean}}$ CFG，cfg scale = 1.2，pix\_ts = 3.5，$t_{\min}=0$，$t_{\max}=1$。\\
+正式评估 & 生成 50k 张图像，计算 FID、sFID、Inception Score、Precision、Recall。\\
+\end{longtable}}
+
+
+除最终结果外，我们还记录了训练过程中的 FID5k 变化，用于观察不同模型规模下的收敛趋势。表 \ref{tab:train-curve-1152} 和表 \ref{tab:train-curve-1536} 分别给出 12$\times$1152 与 16$\times$1536 模型的中间评估结果。可以看到，两组实验都在前 20--30 个 epoch 内快速下降，随后进入相对平缓的平台期；继续训练仍有小幅收益，但主要提升来自模型规模、CFG 构造和采样参数，而不是单纯延长训练时间。
+
+\begin{table}[H]
+\centering
+\caption{12$\times$1152 模型训练过程 FID5k}
+\label{tab:train-curve-1152}
+\begin{tabular}{ccccccccc}
+\toprule
+Epoch & 10 & 20 & 30 & 40 & 50 & 60 & 70 & 80 \\
+\midrule
+FID5k & 11.707 & 9.203 & 8.895 & 8.820 & 8.756 & 8.652 & 8.635 & 8.573 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{16$\times$1536 模型训练过程 FID5k}
+\label{tab:train-curve-1536}
+\begin{tabular}{cccccc}
+\toprule
+Epoch & 10 & 20 & 30 & 40 & 50 \\
+\midrule
+FID5k & 11.893 & 9.062 & 8.745 & 8.774 & 8.742 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{早期条件注入方式比较}
+\label{app:inject-details}
+
+在固定 6 层 768 维 Pixel Head（约 67M 参数）、无 LoRA、训练 50 Epoch 的统一设置下，我们比较了三种将 RAE 语义信息送入 Pixel Head 的方式。各组实验均取各自最优采样时间偏移，结果如表 \ref{tab:inject-ablation} 所示。
+
+\begin{table}[H]
+\centering
+\caption{早期条件注入方式对比（6$\times$768，无 CFG）}
+\label{tab:inject-ablation}
+\begin{tabular}{lll}
+\toprule
+注入方式 & 说明 & FID \\
+\midrule
+瓶颈层 AdaLN 注入第 3 层 & 干净语义经编码器后注入 & 35.78 \\
+直接注入干净 DINOv2 特征 & 跳过编码器，线性映射后注入 & 36.69 \\
+通道拼接（channel concat） & 语义特征与像素 token 通道维拼接 & 32.57 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+初步结论是：channel concat（FID 32.57）优于瓶颈层 AdaLN 注入（35.78），而直接注入干净 DINOv2 特征（36.69）略逊于瓶颈层注入，说明经编码器提炼后的瓶颈表征比原始语义潜在向量更适合驱动像素扩散。后续主实验仍以瓶颈层 AdaLN 注入为主干，并在其上继续放大模型、设计 CFG 与采样策略；架构组件方面，AdaLN-Zero 初始化与 x-prediction 对生成质量有积极贡献。
+
+\subsection{CFG 中 $s_{\mathrm{clean}}$ 构造方式的比较}
+\label{app:cfg-details}
+
+在 CFG 设计中，四种 $s_{\mathrm{clean}}$ 模式差异明显。以 6$\times$768 模型为例，在相同采样条件下，shared 与 split 均在 23--25 左右；traj 模式最差，说明让条件分支和无条件分支来自两条不同语义轨迹会破坏 CFG 方向；null 模式最好，证明训练可学习空白语义条件是更合理的做法。
+
+\begin{table}[H]
+\centering
+\caption{不同 $s_{\mathrm{clean}}$ CFG 模式对比（6$\times$768，FID5k）}
+\begin{tabular}{llll}
+\toprule
+模式 & 说明 & cfg & FID5k \\
+\midrule
+w/o CFG & 不使用 classifier-free guidance & 1.0 & 41.980 \\
+shared & 无条件分支复用条件 $s_{\mathrm{clean}}$ & 2.0 & 24.689 \\
+split & 同一 latent，只去掉类别标签 & 2.0 & 24.965 \\
+null & 使用训练得到的空白 $s_{\mathrm{clean}}$ & 2.0 & 19.923 \\
+traj & 条件/无条件来自不同 RAE 轨迹 & 2.0 & 37.458 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+在 12$\times$1152 模型上，null 模式配合 CFG 也给出稳定收益。以 ep50 为例，pix\_ts=3 时 cfg=1.5 可达到 FID5k 8.756；进一步将 pix\_ts 调到 4，cfg=1.4 时 FID5k 降至 8.222，对应 FID50k 为 2.420。RAE/Pixel CFG 解耦的收益相对有限，FID50k 从 2.782 仅微调到 2.774，说明在该模型上主要收益已经来自 null 条件和采样时间分布，而不是两路 CFG 强度的精细分离。
+
+\subsection{采样 time shift 与 CFG scale 扫描}
+\label{app:pixts-details}
+
+pix\_ts 控制采样过程中时间步在高噪声端和低噪声端的分布。为了确定最终采样设置，我们在最终 16$\times$1536 模型的 ep50 checkpoint 上同时扫描 pix\_ts 与 CFG scale。表 \ref{tab:1536-pixts-cfg} 显示，pix\_ts 从 1.0 增大到 3.0--4.0 后 FID 明显下降，而 CFG scale 的最优值集中在 1.2 附近；过大的 CFG scale 反而会使 FID 变差。最终正式评估采用 pix\_ts=3.5、cfg=1.2，该点 FID5k 为 7.929，并在 50k 样本上得到 FID 2.07。pix\_ts=3.7、cfg=1.2 的 FID5k 略低（7.924），但二者差异很小，处于同一稳定区域内。
+
+\begin{table}[H]
+\centering
+\caption{16$\times$1536 模型 ep50 的 pix\_ts 与 CFG scale 扫描（FID5k，null 模式）}
+\label{tab:1536-pixts-cfg}
+\begin{tabular}{cccccc}
+\toprule
+pix\_ts $\backslash$ cfg & 1.0 & 1.2 & 1.5 & 2.0 & 2.5 \\
+\midrule
+1.0 & 18.958 & 14.037 & 12.103 & 12.150 & 12.575 \\
+2.0 & 12.060 & 9.354 & 9.614 & 11.096 & 12.086 \\
+3.0 & 10.570 & 8.073 & 8.742 & 10.666 & 11.856 \\
+3.2 & 10.530 & 7.991 & 8.658 & 10.617 & 11.828 \\
+3.5 & 10.559 & \textbf{7.929} & 8.573 & 10.565 & 11.788 \\
+3.7 & 10.630 & 7.924 & 8.539 & 10.532 & 11.771 \\
+4.0 & 10.789 & 7.958 & 8.513 & 10.501 & 11.752 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{AutoGuidance 实验}
+\label{app:ag-details}
+
+我们还尝试了 AutoGuidance：用较弱的 DiT$^{\mathrm{DH}}$ 模型作为 bad model，引导 RAE 语义去噪。该方法在小模型上能明显改善结果，例如 6$\times$768 模型从 FID5k 42.740 降至 36.714；在 12$\times$1152 模型上，使用 DiT$^{\mathrm{DH}}$-S ep14 作为 bad model 时，可从 15.080 降至 13.458。但这些提升不足以改变整体结论：AutoGuidance 更像是额外的采样修正，而不是解决像素扩散解码器根本瓶颈的关键。
+
+\begin{table}[H]
+\centering
+\caption{AutoGuidance 结果摘要}
+\begin{tabular}{llll}
+\toprule
+模型 & 设置 & baseline & 最佳 AG \\
+\midrule
+6$\times$768 & bad=DiT$^{\mathrm{DH}}$-S ep14 & 42.740 & 36.714 \\
+12$\times$1152 & bad=DiT$^{\mathrm{DH}}$-S ep14 & 15.080 & 13.458 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}
