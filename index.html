@@ -52,52 +52,45 @@
     <main class="content">
       <section id="general-info" class="section">
         <h2 data-i18n="sections.general.title">General Info</h2>
-        <p class="placeholder" data-i18n="sections.general.placeholder">
-          Content coming soon. Add your bio, contact information, and links here.
+
+        <p class="entry-desc" data-i18n="sections.general.intro">
+          I am an undergraduate student at Fudan University, interested in the intersection of mathematics and artificial intelligence—especially formal methods for AI for Math, generative models, and the reliability of large language models. I will spend the 2026 Fall Semester as an exchange student at the University of California, Berkeley.
+        </p>
+
+        <dl class="info-list">
+          <div class="info-row">
+            <dt data-i18n="sections.general.affiliationLabel">Affiliation</dt>
+            <dd data-i18n="sections.general.affiliation">
+              School of Mathematical Sciences, Fudan University · Class of 2024
+            </dd>
+          </div>
+          <div class="info-row">
+            <dt data-i18n="sections.general.majorLabel">Major</dt>
+            <dd data-i18n="sections.general.major">
+              Mathematics + Artificial Intelligence Double Degree
+            </dd>
+          </div>
+          <div class="info-row">
+            <dt data-i18n="sections.general.exchangeLabel">Exchange</dt>
+            <dd data-i18n="sections.general.exchange">
+              University of California, Berkeley · 2026 Fall Semester
+            </dd>
+          </div>
+          <div class="info-row">
+            <dt data-i18n="sections.general.interestsLabel">Interests</dt>
+            <dd data-i18n="sections.general.interests">
+              AI for Math &amp; formal languages · generative models · LLM reliability / hallucination · applied mathematical modeling
+            </dd>
+          </div>
+        </dl>
+
+        <p class="entry-desc general-contact-note" data-i18n="sections.general.contactNote">
+          Contact and GitHub links are listed in the sidebar.
         </p>
       </section>
 
       <section id="research" class="section">
         <h2 data-i18n="sections.research.title">Research</h2>
-
-        <div class="subsection">
-          <h3 data-i18n="sections.research.seminars.title">Seminars</h3>
-
-          <article class="entry">
-            <div class="entry-header">
-              <h4 data-i18n="sections.research.seminars.rep.title">Finite Group Representation Theory</h4>
-              <span class="entry-tag" data-i18n="sections.research.seminars.rep.tag">Math</span>
-            </div>
-            <p class="entry-desc" data-i18n="sections.research.seminars.rep.desc">
-              Reading seminar on finite group representation theory. I presented in Week 1 and Week 3.
-            </p>
-            <ul class="entry-list">
-              <li data-i18n="sections.research.seminars.rep.talk1">Week 1 — G-modules</li>
-              <li data-i18n="sections.research.seminars.rep.talk2">Week 3 — Orthogonality relations</li>
-            </ul>
-            <p class="entry-links">
-              <a href="representation/representation-note.pdf" target="_blank" rel="noopener noreferrer" data-i18n="links.notes">Notes</a>
-              <span class="link-sep">·</span>
-              <a href="representation/main.pdf" target="_blank" rel="noopener noreferrer" data-i18n="links.problems">Problem set</a>
-            </p>
-          </article>
-
-          <article class="entry">
-            <div class="entry-header">
-              <h4 data-i18n="sections.research.seminars.algo.title">Frontier AI Algorithms</h4>
-              <span class="entry-tag" data-i18n="sections.research.seminars.algo.tag">AI</span>
-            </div>
-            <p class="entry-desc" data-i18n="sections.research.seminars.algo.desc">
-              Seminar on frontier AI algorithms. I presented on reinforcement learning from LLMs to agentic systems.
-            </p>
-            <ul class="entry-list">
-              <li data-i18n="sections.research.seminars.algo.talk1">From LLM RL to Agentic RL</li>
-            </ul>
-            <p class="entry-links">
-              <a href="algorithm/From_LLM_RL_to_Agentic_RL.pdf" target="_blank" rel="noopener noreferrer" data-i18n="links.slides">Slides</a>
-            </p>
-          </article>
-        </div>
 
         <div class="subsection">
           <h3 data-i18n="sections.research.projects.title">Research Projects</h3>
@@ -107,8 +100,11 @@
               <h4 data-i18n="sections.research.projects.sum.title">Sum–Product Conjecture</h4>
               <span class="entry-tag" data-i18n="sections.research.projects.sum.tag">Math</span>
             </div>
+            <p class="entry-meta" data-i18n="sections.research.projects.sum.advisor" data-i18n-html="true">
+              Advisor: <a href="https://math.fudan.edu.cn/fa/21/c30607a326177/page.htm" target="_blank" rel="noopener noreferrer">Danqing He</a> (贺丹青), Fudan University
+            </p>
             <p class="entry-desc" data-i18n="sections.research.projects.sum.desc">
-              Survey of existing results on the sum–product conjecture and their proof frameworks.
+              A survey of existing results on the sum–product conjecture and their proof frameworks. I served as the student lead for this project, responsible for designing the discussion outline and research plan.
             </p>
             <p class="entry-links">
               <a href="sum-product/sum-product.pdf" target="_blank" rel="noopener noreferrer" data-i18n="links.survey">Survey</a>
@@ -124,12 +120,18 @@
               <h4 data-i18n="sections.research.projects.road.title">Road Traffic Safety Assessment</h4>
               <span class="entry-tag" data-i18n="sections.research.projects.road.tag">Applied</span>
             </div>
-            <p class="entry-meta" data-i18n="sections.research.projects.road.meta">
-              With a faculty mentor at Harvard
+            <p class="entry-meta" data-i18n="sections.research.projects.road.advisor" data-i18n-html="true">
+              Advisor: <a href="https://chinaproject.harvard.edu/people/faan-chen" target="_blank" rel="noopener noreferrer">Faan Chen</a> (陈法安), Harvard University
             </p>
             <p class="entry-desc" data-i18n="sections.research.projects.road.desc">
-              Multi-criteria decision analysis (MCDM) for evaluating road traffic safety in the United States.
+              An MCDM-based assessment of U.S. state-level road traffic safety, integrating hybrid objective weighting, interdependent aggregation, and adaptive density-peak clustering for ranking and benchmarking.
             </p>
+            <details class="abstract-block">
+              <summary data-i18n="labels.abstract">Abstract</summary>
+              <p data-i18n="sections.research.projects.road.abstract">
+                Selecting a robust Multiple Criteria Decision Making (MCDM) pipeline for road safety planning remains difficult because rankings and groupings are sensitive to normalization, weighting, and aggregation choices, while classical Density Peaks Clustering (DPC) still depends on manual center selection. This study proposes an integrated IDOCRIW–DOBI–DPC framework enhanced with KNN-based density estimation and adaptive thresholding (KAT-DPC), and applies it to transport safety assessment for the 50 U.S. states and the District of Columbia. Eight Safety Performance Indicators (SPIs)—highway safety expenditures, registered vehicles, licensed drivers, vehicle miles traveled, road length, road condition, seat belt usage, and fatality rate—are compiled mainly from NHTSA and BTS sources for 2016, 2019, and 2022. IDOCRIW provides hybrid objective weights, DOBI aggregates interdependent criteria into composite scores, and KAT-DPC automates clustering for benchmarking. Results show persistent top performers (notably California, Texas, and Florida) and persistent low performers (e.g., Alaska, Vermont, and the District of Columbia), with selected mid-tier states exhibiting substantial group volatility. Robustness checks across alternative normalization, weighting, and aggregation methods yield high rank correlations (often above 0.90–0.95). Indicator dynamics, composite deconstruction, score-change decomposition, and within-group benchmarking further translate the scores into actionable guidance for state-level safety planning.
+              </p>
+            </details>
             <p class="entry-links">
               <a href="road-safety/thesis.pdf" target="_blank" rel="noopener noreferrer" data-i18n="links.thesis">Thesis</a>
               <span class="link-sep">·</span>
@@ -151,23 +153,72 @@
               <h4 data-i18n="sections.research.projects.hall.title">AI Hallucination</h4>
               <span class="entry-tag" data-i18n="sections.research.projects.hall.tag">AI</span>
             </div>
-            <p class="entry-meta" data-i18n="sections.research.projects.hall.meta">
-              MIT Universal Village
+            <p class="entry-meta" data-i18n="sections.research.projects.hall.advisor" data-i18n-html="true">
+              Advisor: <a href="https://web.mit.edu/yjfang/www/research_link.html" target="_blank" rel="noopener noreferrer">Yajun Fang</a> (方亚隽), MIT · Universal Village
             </p>
             <p class="entry-desc" data-i18n="sections.research.projects.hall.desc">
-              Survey work on AI hallucination, with three outcomes covering mitigation, evaluation, and an overall survey.
+              A series of survey and framework papers on AI hallucination under MIT Universal Village, covering mitigation, evaluation, and a comprehensive UV-oriented perspective on safe and trustworthy AI.
             </p>
-            <ul class="entry-list">
-              <li>
-                <a href="hallucination/Z11ZSF-TS11-B-3_5414.pdf" target="_blank" rel="noopener noreferrer" data-i18n="sections.research.projects.hall.item1">Mitigation</a>
-              </li>
-              <li>
-                <a href="hallucination/Z11ZSF-TS11-B-9_9066.pdf" target="_blank" rel="noopener noreferrer" data-i18n="sections.research.projects.hall.item2">Evaluation</a>
-              </li>
-              <li>
-                <a href="hallucination/Z11ZZSF-TS11-B-10_8007.pdf" target="_blank" rel="noopener noreferrer" data-i18n="sections.research.projects.hall.item3">Overall survey</a>
-              </li>
-            </ul>
+
+            <div class="paper-block">
+              <p class="paper-heading">
+                <a href="hallucination/Z11ZSF-TS11-B-3_5414.pdf" target="_blank" rel="noopener noreferrer" data-i18n="sections.research.projects.hall.item1">Mitigation — co-first author</a>
+              </p>
+              <p class="paper-summary" data-i18n="sections.research.projects.hall.sum1">
+                Reframes hallucination mitigation as a lifecycle problem and organizes methods via a three-dimensional taxonomy with an integrative hybrid framework.
+              </p>
+              <details class="abstract-block">
+                <summary data-i18n="labels.abstract">Abstract</summary>
+                <p data-i18n="sections.research.projects.hall.abs1">
+                  Hallucinations in large language and vision–language models constitute a persistent and systemic failure mode that fundamentally undermines their reliability in high-stakes applications. Rather than framing hallucination as a localized generation error, this paper reconceptualizes it as a lifecycle phenomenon—emerging from upstream deficiencies in data collection, reinforced by training-time biases, and exacerbated by inference-time decoding pathologies. To address this challenge, we propose a unified framework for hallucination mitigation grounded in a structured three-dimensional taxonomy that spans mechanism-based strategies, phase-specific interventions, and cross-phase integrative approaches. This taxonomy elucidates how technical solutions, knowledge-enhanced methods, and framework-level designs can be systematically orchestrated across pre-, in-, and post-generation stages to support more robust, interpretable, and auditable model behavior. Within this paradigm, detection is positioned not as a terminal task, but as a diagnostic backbone that enables adaptive and multi-stage mitigation workflows. Building on this foundation, we introduce an integrative hybrid framework that consolidates previously fragmented techniques into coherent pipelines, demonstrating how cross-phase synergy and iterative refinement can enhance reliability in real-world deployment. This framework further reveals latent connections across diverse strands of research, facilitating the identification of underexplored intersections and the development of synergistic method combinations. By reframing hallucination mitigation as a system-level challenge rather than a set of isolated fixes, this work offers both a theoretical lens and a practical roadmap for advancing the trustworthiness of generative AI systems.
+                </p>
+              </details>
+              <p class="entry-links">
+                <a href="https://ieeexplore.ieee.org/document/11189154" target="_blank" rel="noopener noreferrer">IEEE</a>
+                <span class="link-sep">·</span>
+                <a href="hallucination/Z11ZSF-TS11-B-3_5414.pdf" target="_blank" rel="noopener noreferrer">PDF</a>
+              </p>
+            </div>
+
+            <div class="paper-block">
+              <p class="paper-heading">
+                <a href="hallucination/Z11ZSF-TS11-B-9_9066.pdf" target="_blank" rel="noopener noreferrer" data-i18n="sections.research.projects.hall.item2">Evaluation — co-third author</a>
+              </p>
+              <p class="paper-summary" data-i18n="sections.research.projects.hall.sum2">
+                Proposes LENS, a hierarchical evaluation framework that combines broad model comparison with deep diagnostic traces of where hallucinations arise.
+              </p>
+              <details class="abstract-block">
+                <summary data-i18n="labels.abstract">Abstract</summary>
+                <p data-i18n="sections.research.projects.hall.abs2">
+                  Large Language Models (LLMs) and Vision-Language Models (VLMs) demonstrate remarkable capabilities but remain vulnerable to hallucinations—producing plausible yet factually incorrect content. Despite growing attention, existing hallucination evaluation frameworks remain insufficient to meet critical needs. Through a comprehensive survey of over 100 evaluation methods spanning six methodological paradigms, we identify fundamental limitations in objective comparison, diagnostic insight, domain-evolving benchmarks, and mitigation guidance. We present LENS (Layers of Evaluation of Hallucination in GenAI Systems), a unified framework addressing these gaps through hierarchical, tree-based query decomposition. LENS transforms complex evaluation tasks into multi-layered assessment structures via a six-stage pipeline (task formulation, decomposition, tool-augmented execution, structured generation, multi-dimensional scoring, and trace analysis), enabling MRI-like scanning of inference processes to reveal where and why hallucinations originate. Key innovations include Tool Necessity Detection and Selection (TND/TSA), multi-dimensional metrics beyond binary detection, user-centric benchmark construction, and actionable error attribution with reproducible traces. By combining horizontal breadth with vertical depth, LENS advances hallucination evaluation from post-hoc error detection to proactive risk assessment for safety-critical applications.
+                </p>
+              </details>
+              <p class="entry-links">
+                <a href="https://ieeexplore.ieee.org/document/11189150" target="_blank" rel="noopener noreferrer">IEEE</a>
+                <span class="link-sep">·</span>
+                <a href="hallucination/Z11ZSF-TS11-B-9_9066.pdf" target="_blank" rel="noopener noreferrer">PDF</a>
+              </p>
+            </div>
+
+            <div class="paper-block">
+              <p class="paper-heading">
+                <a href="hallucination/Z11ZZSF-TS11-B-10_8007.pdf" target="_blank" rel="noopener noreferrer" data-i18n="sections.research.projects.hall.item3">Overall survey — co-first author</a>
+              </p>
+              <p class="paper-summary" data-i18n="sections.research.projects.hall.sum3">
+                Provides a comprehensive taxonomy and mechanistic analysis of AI hallucination, and proposes a UV-oriented framework toward safe and trustworthy AI.
+              </p>
+              <details class="abstract-block">
+                <summary data-i18n="labels.abstract">Abstract</summary>
+                <p data-i18n="sections.research.projects.hall.abs3">
+                  In this work, we present a comprehensive evaluation of hallucination phenomena in LLMs and multimodal systems. First, we propose a structured taxonomy encompassing factuality-based, faithfulness-based, logical-based, and emergent hybrid forms, extending to multimodal-specific risks such as cross-modal inconsistencies, visual overinterpretation, and modality dominance effects. Second, we conduct a mechanistic analysis that traces hallucinations across the full model lifecycle—data-level origins, training-induced mechanisms, and inference-time vulnerabilities—revealing cascade effects that amplify initial flaws into elaborate but unreliable narratives. Third, we critically assess existing detection and evaluation approaches and survey mitigation strategies organized into mechanism-based, phase-based, and hybrid approaches. Building on these insights, we propose a novel UV-oriented framework for safe and trustworthy AI, inspired by the Universal Village vision of harmonizing human, technological, and environmental systems. Our contributions are threefold: (1) a comprehensive taxonomy linking manifestations with mechanistic drivers; (2) a coherent survey of detection, evaluation, and mitigation that highlights progress and gaps; and (3) a UV-oriented framework that reframes hallucination control as part of a broader, feedback-driven ecosystem for reliable AI.
+                </p>
+              </details>
+              <p class="entry-links">
+                <a href="https://ieeexplore.ieee.org/document/11189137" target="_blank" rel="noopener noreferrer">IEEE</a>
+                <span class="link-sep">·</span>
+                <a href="hallucination/Z11ZZSF-TS11-B-10_8007.pdf" target="_blank" rel="noopener noreferrer">PDF</a>
+              </p>
+            </div>
           </article>
 
           <article class="entry">
@@ -175,14 +226,22 @@
               <h4 data-i18n="sections.research.projects.rae.title">Pixel Diffusion Decoder via RAE</h4>
               <span class="entry-tag" data-i18n="sections.research.projects.rae.tag">AI</span>
             </div>
-            <p class="entry-meta" data-i18n="sections.research.projects.rae.meta">
-              FDUROP Undergraduate Research Grant
+            <p class="entry-meta" data-i18n="sections.research.projects.rae.advisor" data-i18n-html="true">
+              Advisor: <a href="https://ai3.fudan.edu.cn/info/1088/1754.htm" target="_blank" rel="noopener noreferrer">Zenglin Xu</a> (徐增林), Fudan University · FDUROP
             </p>
             <p class="entry-desc" data-i18n="sections.research.projects.rae.desc">
-              High-fidelity image generation with a pixel diffusion decoder based on Representation Autoencoders (RAE). Funded under Fudan University’s FDUROP undergraduate academic research program with teammates.
+              An FDUROP undergraduate research project exploring whether a pixel-space diffusion decoder can improve RAE detail quality in high-fidelity ImageNet generation. Joint work with teammates.
             </p>
+            <details class="abstract-block">
+              <summary data-i18n="labels.abstract">Abstract</summary>
+              <p data-i18n="sections.research.projects.rae.abstract">
+                Representation Autoencoders (RAE) replace traditional VAE encoders with frozen visual representation encoders and achieve strong results on ImageNet 256×256 class-conditional generation. However, the final image is still produced in one step by a feed-forward ViT decoder, which can yield blurry text, unstable facial structure, and color shifts in detail regions. This project replaces that decoder with a diffusion model operating in pixel space, forming a serial generation pipeline of semantic latent denoising followed by pixel-space diffusion decoding. We implement a full training, sampling, and evaluation pipeline and systematically study synchronous/serial denoising, semantic conditioning, model scale, sampling time shift, classifier-free guidance (CFG), and AutoGuidance. The best model reaches FID50k = 2.065 on ImageNet 256×256, but with substantially higher parameter count and inference cost than the original RAE, and still does not surpass existing RAE results. We conclude that a pixel diffusion decoder is technically feasible as an RAE backend and that serial decoupling with CFG is effective; under current settings, however, the main bottleneck is not only decoder capacity but the lack of sufficient pixel-level information in DINOv2 semantic representations. This provides a fairly complete negative baseline for follow-up work and suggests that simply strengthening the pixel decoder is not an ideal path to improving RAE detail quality.
+              </p>
+            </details>
             <p class="entry-links">
               <a href="rae/main.pdf" target="_blank" rel="noopener noreferrer" data-i18n="links.report">Report</a>
+              <span class="link-sep">·</span>
+              <a href="https://github.com/shihaoyang0423/Pixel-Generation-with-RAE" target="_blank" rel="noopener noreferrer">GitHub</a>
             </p>
           </article>
 
@@ -195,7 +254,7 @@
               Shanghai AI Laboratory · AI for Science Center · Jan–May 2026
             </p>
             <p class="entry-desc" data-i18n="sections.research.projects.litex.desc">
-              Contributed to Litex, an open-source AI-for-Math project on formal languages for mathematics, including the MiniF2F dataset and the tutorial documentation Mathematics in Litex.
+              Open-source work on Litex, a formal language for mathematics in the AI-for-Math ecosystem. Contributions include the MiniF2F dataset and the tutorial documentation Mathematics in Litex.
             </p>
             <ul class="entry-list">
               <li data-i18n="sections.research.projects.litex.item1">Litex formal language and open-source ecosystem</li>
@@ -213,6 +272,46 @@
             </p>
           </article>
         </div>
+
+<div class="subsection">
+          <h3 data-i18n="sections.research.seminars.title">Seminars</h3>
+
+          <article class="entry">
+            <div class="entry-header">
+              <h4 data-i18n="sections.research.seminars.rep.title">Finite Group Representation Theory</h4>
+              <span class="entry-tag" data-i18n="sections.research.seminars.rep.tag">Math</span>
+            </div>
+            <p class="entry-desc" data-i18n="sections.research.seminars.rep.desc">
+              A reading seminar on the foundations of finite group representation theory. I presented in Week 1 and Week 3, covering G-modules and character orthogonality, with handwritten notes and problem sets.
+            </p>
+            <ul class="entry-list">
+              <li data-i18n="sections.research.seminars.rep.talk1">Week 1 — G-modules</li>
+              <li data-i18n="sections.research.seminars.rep.talk2">Week 3 — Orthogonality relations</li>
+            </ul>
+            <p class="entry-links">
+              <a href="representation/representation-note.pdf" target="_blank" rel="noopener noreferrer" data-i18n="links.notes">Notes</a>
+              <span class="link-sep">·</span>
+              <a href="representation/main.pdf" target="_blank" rel="noopener noreferrer" data-i18n="links.problems">Problem set</a>
+            </p>
+          </article>
+
+          <article class="entry">
+            <div class="entry-header">
+              <h4 data-i18n="sections.research.seminars.algo.title">Frontier AI Algorithms</h4>
+              <span class="entry-tag" data-i18n="sections.research.seminars.algo.tag">AI</span>
+            </div>
+            <p class="entry-desc" data-i18n="sections.research.seminars.algo.desc">
+              A seminar on frontier AI algorithms. My talk surveyed the transition from LLM reinforcement learning to agentic RL, covering training paradigms, reward design, and emerging agent frameworks.
+            </p>
+            <ul class="entry-list">
+              <li data-i18n="sections.research.seminars.algo.talk1">From LLM RL to Agentic RL</li>
+            </ul>
+            <p class="entry-links">
+              <a href="algorithm/From_LLM_RL_to_Agentic_RL.pdf" target="_blank" rel="noopener noreferrer" data-i18n="links.slides">Slides</a>
+            </p>
+          </article>
+        </div>
+
       </section>
 
       <section id="internship" class="section">
@@ -239,9 +338,36 @@
 
       <section id="academic-performance" class="section">
         <h2 data-i18n="sections.academic.title">Academic Performance</h2>
-        <p class="placeholder" data-i18n="sections.academic.placeholder">
-          Content coming soon. Add coursework, honors, and academic achievements here.
-        </p>
+
+        <div class="subsection">
+          <h3 data-i18n="sections.academic.education.title">Education</h3>
+          <p class="entry-desc" data-i18n="sections.academic.education.desc">
+            School of Mathematical Sciences, Fudan University · Class of 2024
+          </p>
+          <p class="entry-meta" data-i18n="sections.academic.education.gpa">
+            GPA: 3.68 / 4.0
+          </p>
+        </div>
+
+        <div class="subsection">
+          <h3 data-i18n="sections.academic.honors.title">Honors & Scholarships</h3>
+          <ul class="entry-list honor-list">
+            <li data-i18n="sections.academic.honors.item1">
+              2024–2025 Fudan University Undergraduate Outstanding Student Scholarship, Third Prize
+            </li>
+            <li data-i18n="sections.academic.honors.item2">
+              Fudan University Undergraduate Basic Discipline Scholarship
+            </li>
+          </ul>
+        </div>
+
+        <div class="subsection">
+          <h3 data-i18n="sections.academic.transcript.title">Transcript</h3>
+          <p class="entry-desc transcript-note" data-i18n="sections.academic.transcript.note">
+            Course records from the official Fudan University transcript. “P” denotes Pass.
+          </p>
+          <div id="transcript-root" class="transcript-root"></div>
+        </div>
       </section>
 
       <section id="publications" class="section">
@@ -269,7 +395,7 @@
 
           <li class="pub-item">
             <p class="pub-authors">
-              Chuqiao Gu, Wuyang Zhang, Zhenqian Huang, Jieren Kou, Zhenyao Liu, Chenjun Zhao, Chang Liu, Lifeng Zhang, Wenjie Lin, Zhongda Wang, Jiaqi Deng, Yuhuan Xie, Guoxin Huang, Charles Zhang, <strong>Xiuyuan Lu</strong>, Chengming Wang, Zejun Zhang, Yuan Hao, Xiaoman Duan, and Yajun Fang.
+              Chuqiao Gu, Wuyang Zhang, Zhenqian Huang, Jieren Kou, Zhenyao Liu, Chenjun Zhao, Chang Liu, Lifeng Zhang, Wenjie Lin, Zhongda Wang, Jianwei Deng, Yuhuan Xie, Guoxin Huang, Charles Zhang, <strong>Xiuyuan Lu</strong>, Chengming Wang, Zejun Zhang, Yuan Hao, Xiaoman Duan, and Yajun Fang.
             </p>
             <p class="pub-title">
               LENS: Layers of Evaluation of Hallucination in GenAI Systems.
@@ -309,6 +435,7 @@
     </main>
   </div>
 
+  <script src="js/academic.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/app.js"></script>
 </body>
