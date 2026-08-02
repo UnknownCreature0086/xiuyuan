@@ -13,6 +13,8 @@ const translations = {
       plan: "Plan",
       thesis: "Thesis",
       report: "Report",
+      website: "Website",
+      seeResearch: "See Research · Litex",
     },
     nav: {
       general: "General Info",
@@ -72,11 +74,25 @@ const translations = {
             meta: "FDUROP Undergraduate Research Grant",
             desc: "High-fidelity image generation with a pixel diffusion decoder based on Representation Autoencoders (RAE). Funded under Fudan University’s FDUROP undergraduate academic research program with teammates.",
           },
+          litex: {
+            title: "Litex — AI for Math",
+            tag: "Open Source",
+            meta: "Shanghai AI Laboratory · AI for Science Center · Jan–May 2026",
+            desc: "Contributed to Litex, an open-source AI-for-Math project on formal languages for mathematics, including the MiniF2F dataset and the tutorial documentation Mathematics in Litex.",
+            item1: "Litex formal language and open-source ecosystem",
+            item2: "MiniF2F dataset",
+            item3: "Mathematics in Litex (tutorial documentation)",
+          },
         },
       },
       internship: {
         title: "Internship",
-        placeholder: "Content coming soon. List your internship experiences and outcomes here.",
+        pjlab: {
+          title: "Shanghai AI Laboratory",
+          tag: "AI for Science",
+          meta: "Jan 2026 – May 2026 · AI for Science Center",
+          desc: "Interned at the AI for Science Center, working on the Litex open-source project. See Research for details.",
+        },
       },
       academic: {
         title: "Academic Performance",
@@ -84,7 +100,7 @@ const translations = {
       },
       publications: {
         title: "Publications",
-        placeholder: "Content coming soon. Link to papers, preprints, and other publications here.",
+        venue: "In <em>2024 7th International Conference on Universal Village (UV)</em>, 2024.",
       },
     },
   },
@@ -102,6 +118,8 @@ const translations = {
       plan: "计划",
       thesis: "论文",
       report: "报告",
+      website: "网站",
+      seeResearch: "详见研究 · Litex",
     },
     nav: {
       general: "基本信息",
@@ -161,11 +179,25 @@ const translations = {
             meta: "FDUROP 本科生学术研究资助计划立项",
             desc: "基于 Representation Autoencoders（RAE）的像素扩散解码器，用于高保真图像生成。与队友以此项目申请并获批复旦大学 FDUROP 本科生学术研究资助计划立项。",
           },
+          litex: {
+            title: "Litex — AI for Math",
+            tag: "开源",
+            meta: "上海人工智能实验室 · AI for Science 中心 · 2026.1–2026.5",
+            desc: "参与 Litex 开源项目，围绕面向数学的形式化语言开展工作，包括 MiniF2F 数据集与教程向文档 Mathematics in Litex。",
+            item1: "Litex 形式化语言与开源生态",
+            item2: "MiniF2F 数据集",
+            item3: "Mathematics in Litex（教程向文档）",
+          },
         },
       },
       internship: {
         title: "实习经历",
-        placeholder: "内容待补充。在此列出实习经历与成果。",
+        pjlab: {
+          title: "上海人工智能实验室",
+          tag: "AI for Science",
+          meta: "2026.1 – 2026.5 · AI for Science 中心",
+          desc: "于 AI for Science 中心实习，参与 Litex 开源项目。详见「研究」。",
+        },
       },
       academic: {
         title: "学业表现",
@@ -173,7 +205,7 @@ const translations = {
       },
       publications: {
         title: "发表论文",
-        placeholder: "内容待补充。在此链接论文、预印本及其他发表成果。",
+        venue: "见 <em>2024 年第七届 Universal Village 国际会议（UV）</em> 论文集，2024。",
       },
     },
   },
@@ -192,7 +224,12 @@ function applyLanguage(lang) {
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
     const value = getNestedValue(dict, key);
-    if (value) el.textContent = value;
+    if (!value) return;
+    if (el.dataset.i18nHtml === "true") {
+      el.innerHTML = value;
+    } else {
+      el.textContent = value;
+    }
   });
 
   document.querySelectorAll(".lang-btn").forEach((btn) => {
