@@ -127,10 +127,6 @@ const translations = {
           item1: "2024–2025 Fudan University Undergraduate Outstanding Student Scholarship, Third Prize",
           item2: "Fudan University Undergraduate Basic Discipline Scholarship",
         },
-        transcript: {
-          title: "Transcript",
-          note: "Course records from the official Fudan University transcript. “P” denotes Pass.",
-        },
       },
       publications: {
         title: "Publications",
@@ -266,10 +262,6 @@ const translations = {
           item1: "2024～2025 复旦大学本科生优秀学生奖学金三等奖",
           item2: "复旦大学本科生基础学科奖学金",
         },
-        transcript: {
-          title: "成绩单",
-          note: "以下课程记录来自复旦大学官方成绩单。“P” 表示通过（Pass）。",
-        },
       },
       publications: {
         title: "发表论文",
@@ -305,10 +297,6 @@ function applyLanguage(lang) {
   });
 
   document.title = dict.profile?.name ?? document.title;
-
-  if (typeof renderTranscript === "function") {
-    renderTranscript(lang);
-  }
 
   localStorage.setItem("lang", lang);
 }

@@ -544,73 +544,9 @@ a:hover {
   }
 }
 
-/* Academic / transcript */
+/* Academic */
 .honor-list {
   color: var(--text);
-}
-
-.transcript-note {
-  margin-bottom: 1.25rem;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-.transcript-block {
-  margin-bottom: 1.75rem;
-}
-
-.transcript-term {
-  margin: 0 0 0.65rem;
-  font-size: 0.975rem;
-  font-weight: 600;
-}
-
-.transcript-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.transcript-table th,
-.transcript-table td {
-  padding: 0.55rem 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
-
-.transcript-table th {
-  font-weight: 600;
-  color: var(--text-muted);
-  background: var(--bg);
-}
-
-.transcript-table tr:last-child td {
-  border-bottom: none;
-}
-
-.transcript-table th:nth-child(2),
-.transcript-table td:nth-child(2),
-.transcript-table th:nth-child(3),
-.transcript-table td:nth-child(3) {
-  width: 4.5rem;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.transcript-table td:first-child {
-  color: var(--text);
-}
-
-@media (max-width: 640px) {
-  .transcript-table {
-    display: block;
-    overflow-x: auto;
-  }
 }
 
 /* Mobile */
