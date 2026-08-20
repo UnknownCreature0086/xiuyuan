@@ -120,11 +120,10 @@ const translations = {
         education: {
           title: "Education",
           desc: "School of Mathematical Sciences, Fudan University · Class of 2024",
-          gpa: "GPA: 3.68 / 4.0",
         },
         honors: {
           title: "Honors & Scholarships",
-          item1: "2024–2025 Fudan University Undergraduate Outstanding Student Scholarship, Third Prize",
+          item1: "2024–2025 Fudan University Undergraduate Outstanding Student Scholarship",
           item2: "Fudan University Undergraduate Basic Discipline Scholarship",
         },
       },
@@ -255,11 +254,10 @@ const translations = {
         education: {
           title: "教育背景",
           desc: "复旦大学数学科学学院 · 2024 级",
-          gpa: "总 GPA：3.68 / 4.0",
         },
         honors: {
           title: "荣誉与奖学金",
-          item1: "2024～2025 复旦大学本科生优秀学生奖学金三等奖",
+          item1: "2024～2025 复旦大学本科生优秀学生奖学金",
           item2: "复旦大学本科生基础学科奖学金",
         },
       },
